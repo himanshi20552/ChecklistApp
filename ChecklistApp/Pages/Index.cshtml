@@ -1,0 +1,39 @@
+﻿@page
+@model ChecklistApp.Pages.IndexModel
+
+<h1>Policy Verification Checklist</h1>
+
+@if (Model.ErrorMessage is not null)
+{
+    <p role="alert" style="color: red">
+        @Model.ErrorMessage
+    </p>
+}
+
+@if (Model.SuccessMessage is not null)
+{
+    <p role="status" style="color: green">
+        @Model.SuccessMessage
+    </p>
+}
+
+@if (Model.Checklist.TID > 0)
+{
+    <p>
+        <strong>Transaction:</strong> @Model.Checklist.TID
+        &nbsp;
+        <strong>Policy:</strong> @Model.Checklist.PNo
+    </p>
+
+    @await Component.InvokeAsync("Checklist", new
+    {
+        tid = Model.Checklist.TID,
+        pno = Model.Checklist.PNo,
+        cid = Model.Checklist.CID,
+        employeeId = Model.Checklist.EmployeeID
+    })
+}
+else if (Model.ErrorMessage is null)
+{
+    <p>Transaction information is required to display the checklist.</p>
+}

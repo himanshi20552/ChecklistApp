@@ -1,0 +1,233 @@
+﻿@model ChecklistApp.ViewModels.ChecklistPageViewModel
+
+<div class="checklist-component">
+    <h3 class="mb-3">Verification Checklist</h3>
+
+    @if (Model.Items.Count == 0)
+    {
+        <p>No active requirements were found for this transaction.</p>
+    }
+    else
+    {
+        <form method="post" asp-page="/Index" asp-page-handler="SaveChecklist">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Checklist.TID" value="@Model.TID" />
+            <input type="hidden" name="Checklist.PNo" value="@Model.PNo" />
+            <input type="hidden" name="Checklist.CID" value="@Model.CID" />
+            <input type="hidden" name="Checklist.EmployeeID" value="@Model.EmployeeID" />
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">QID</th>
+                            <th scope="col" style="min-width: 220px;">Requirement Description</th>
+                            <th scope="col" style="min-width: 170px;">Document</th>
+                            <th scope="col" style="min-width: 190px;">Response</th>
+                            <th scope="col" style="min-width: 280px;">Remarks & History</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @for (var i = 0; i < Model.Items.Count; i++)
+                        {
+                            var item = Model.Items[i];
+
+                            <tr class="checklist-item" data-qid="@item.QID">
+                                <td>
+                                    <strong>@item.QID</strong>
+                                    <input type="hidden"
+                                           name="Checklist.Items[@i].QID"
+                                           value="@item.QID" />
+                                </td>
+
+                                <td>
+                                    @item.RequirementDescription
+                                </td>
+
+                                <td>
+                                    @if (item.IsDoc) {
+                                        <span class="badge bg-warning text-dark">
+                                            Document required
+                                        </span>
+
+                                        <input type="file"
+                                               class="form-control form-control-sm mt-2"
+                                               accept=".pdf,.jpg,.jpeg,.png"
+                                               aria-label="Choose document for QID @item.QID" />
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Not required</span>
+                                    }
+                                </td>
+
+                                <td>
+                                    <select class="form-select"
+                                            name="Checklist.Items[@i].SelectedOptionID"
+                                            data-response-qid="@item.QID"
+                                            aria-label="Response for QID @item.QID">
+                                        <option value="">Select response</option>
+
+                                        @foreach (var option in item.Options)
+                                        {
+                                            if (item.SelectedOptionID == option.OptionID)
+                                            {
+                                                <option value="@option.OptionID" selected>
+                                                    @option.OptionValue
+                                                </option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@option.OptionID">
+                                                    @option.OptionValue
+                                                </option>
+                                            }
+                                        }
+                                    </select>
+                                </td>
+
+                                <td>
+                                    <textarea class="form-control mb-2"
+                                              name="Checklist.Items[@i].NewRemark"
+                                              maxlength="2000"
+                                              rows="2"
+                                              placeholder="Enter a new remark"
+                                              aria-label="New remark for QID @item.QID"></textarea>
+
+                                    <details>
+                                        <summary>
+                                            Previous remarks (@item.History.Count)
+                                        </summary>
+
+                                        @if (item.History.Count > 0)
+                                        {
+                                            <div class="mt-2">
+                                                @foreach (var entry in item.History)
+                                                {
+                                                    <div class="border rounded p-2 mb-2">
+                                                        <small class="text-muted">
+                                                            Response:
+                                                            @(entry.OptionValue ?? "No option selected")
+                                                        </small>
+
+                                                        <div>
+                                                            @(entry.UserRemarks ?? "No remark entered")
+                                                        </div>
+
+                                                        <small class="text-muted">
+                                                            Employee: @entry.EmployeeID
+                                                            <br />
+                                                            @entry.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+                                                        </small>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-muted mt-2 mb-0">
+                                                No previous remarks.
+                                            </p>
+                                        }
+                                    </details>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Save Checklist
+            </button>
+        </form>
+    }
+
+    <div id="checklist-display-rules" hidden>
+        @foreach (var rule in Model.DisplayRules)
+        {
+            <span data-trigger-qid="@rule.TriggerQID"
+                  data-trigger-option-id="@rule.TriggerOptionID"
+                  data-dependent-qid="@rule.DependentQID"></span>
+        }
+    </div>
+</div>
+
+<script>
+    (function () {
+        const component = document.querySelector(".checklist-component");
+        if (!component) return;
+
+        const rulesContainer = component.querySelector("#checklist-display-rules");
+
+        const rules = Array.from(
+            rulesContainer.querySelectorAll("[data-trigger-qid]")
+        ).map(element => ({
+            triggerQid: element.dataset.triggerQid,
+            triggerOptionId: element.dataset.triggerOptionId,
+            dependentQid: element.dataset.dependentQid
+        }));
+
+        const items = Array.from(
+            component.querySelectorAll(".checklist-item")
+        );
+
+        function getItem(qid) {
+            return items.find(item => item.dataset.qid === String(qid));
+        }
+
+        function getSelectedOption(qid) {
+            const item = getItem(qid);
+            return item?.querySelector("[data-response-qid]")?.value ?? "";
+        }
+
+        function evaluateVisibility() {
+            const visible = new Set(
+                items.map(item => item.dataset.qid)
+            );
+            for (const rule of rules) {
+                visible.delete(rule.dependentQid);
+            }
+            let changed = true;
+            let passes = 0;
+
+            while (changed && passes <= items.length) {
+                changed = false;
+                passes++;
+
+                for (const rule of rules) {
+                    if (!visible.has(rule.triggerQid)) continue;
+
+                    if (
+                        getSelectedOption(rule.triggerQid) === rule.triggerOptionId &&
+                        !visible.has(rule.dependentQid)
+                    ) {
+                        visible.add(rule.dependentQid);
+                        changed = true;
+                    }
+                }
+            }
+
+            for (const item of items) {
+                const isVisible = visible.has(item.dataset.qid);
+                item.hidden = !isVisible;
+                if (!isVisible) {
+                    const response = item.querySelector("[data-response-qid]");
+                    const remark = item.querySelector("textarea");
+
+                    if (response) response.value = "";
+                    if (remark) remark.value = "";
+                }
+            }
+        }
+
+        component.addEventListener("change", function (event) {
+            if (event.target.matches("[data-response-qid]")) {
+                evaluateVisibility();
+            }
+        });
+
+        evaluateVisibility();
+    })();
+</script>

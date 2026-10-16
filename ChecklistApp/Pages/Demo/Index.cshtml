@@ -1,0 +1,47 @@
+﻿
+@page
+@model ChecklistApp.Pages.Demo.IndexModel
+
+<h1>Demo Policy Application</h1>
+<p>Select a policy to start a new transaction and open its questionnaire.</p>
+
+@if (Model.ErrorMessage is not null)
+{
+    <p role="alert" style="color: red">@Model.ErrorMessage</p>
+}
+
+@if (Model.Policies.Count == 0)
+{
+    <p>No active demo policies are configured.</p>
+}
+else
+{
+    <div class="row">
+        @foreach (var policy in Model.Policies)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@policy.PolicyName</h5>
+                        <p class="card-text">
+                            Policy: @policy.PNo<br />
+                            Customer: @policy.CID
+                        </p>
+
+                        <form method="post" asp-page-handler="Start">
+                            @Html.AntiForgeryToken()
+
+                            <input type="hidden"
+                                   name="demoPolicyId"
+                                   value="@policy.DemoPolicyID" />
+
+                            <button type="submit" class="btn btn-primary">
+                                Start Transaction
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
