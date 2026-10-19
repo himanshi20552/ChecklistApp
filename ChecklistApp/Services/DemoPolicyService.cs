@@ -2,6 +2,7 @@
 using Dapper;
 using ChecklistApp.Data;
 using ChecklistApp.Models;
+using System.Data;
 
 namespace ChecklistApp.Services
 {
@@ -19,34 +20,34 @@ namespace ChecklistApp.Services
 			using var connection = _connectionFactory.CreateConnection();
 			await connection.OpenAsync();
 
-			const string sql = @"
+			const string sql = """
                 SELECT DemoPolicyID, PolicyName, PNo, CID
                 FROM dbo.DemoPolicies
                 WHERE IsActive = 1
-                ORDER BY PolicyName;";
+                ORDER BY PolicyName;
+                """;
 
 			var policies = await connection.QueryAsync<DemoPolicy>(sql);
 			return policies.ToList();
 		}
-
 
 		public async Task<int> StartTransactionAsync(int demoPolicyId)
 		{
 			using var connection = _connectionFactory.CreateConnection();
 			await connection.OpenAsync();
 
-			using var transaction = connection.BeginTransaction(
-				System.Data.IsolationLevel.Serializable);
+			using var transaction =
+				connection.BeginTransaction(IsolationLevel.Serializable);
 
 			try
 			{
 				var policy = await connection.QuerySingleOrDefaultAsync<DemoPolicy>(
 					"""
-            SELECT DemoPolicyID, PolicyName, PNo, CID
-            FROM dbo.DemoPolicies
-            WHERE DemoPolicyID = @DemoPolicyID
-              AND IsActive = 1;
-            """,
+                    SELECT DemoPolicyID, PolicyName, PNo, CID
+                    FROM dbo.DemoPolicies
+                    WHERE DemoPolicyID = @DemoPolicyID
+                      AND IsActive = 1;
+                    """,
 					new { DemoPolicyID = demoPolicyId },
 					transaction);
 
@@ -55,13 +56,24 @@ namespace ChecklistApp.Services
 					throw new InvalidOperationException(
 						"The selected demo policy does not exist or is inactive.");
 				}
+
+				string contextId = $"{policy.PNo}|{policy.CID}";
+				string definitionCode = $"DEMO_POLICY_{policy.DemoPolicyID}";
+
 				var existingTid = await connection.QuerySingleOrDefaultAsync<int?>(
 					"""
-            SELECT TID
-            FROM dbo.ChecklistTransactions WITH (UPDLOCK, HOLDLOCK)
-            WHERE CID = @CID AND PNo = @PNo;
-            """,
-					new { policy.CID, policy.PNo },
+                    SELECT TID
+                    FROM dbo.ChecklistTransactions WITH (UPDLOCK, HOLDLOCK)
+                    WHERE ContextType = @ContextType
+                      AND ContextID = @ContextID
+                      AND ContextCode = @ContextCode;
+                    """,
+					new
+					{
+						ContextType = "Policy",
+						ContextID = contextId,
+						ContextCode = "Demo"
+					},
 					transaction);
 
 				if (existingTid.HasValue)
@@ -70,13 +82,30 @@ namespace ChecklistApp.Services
 					return existingTid.Value;
 				}
 
+				var definitionExists = await connection.ExecuteScalarAsync<int>(
+					"""
+                    SELECT COUNT(1)
+                    FROM dbo.ChecklistDefinitions
+                    WHERE DefinitionCode = @DefinitionCode
+                      AND IsActive = 1;
+                    """,
+					new { DefinitionCode = definitionCode },
+					transaction);
+
+				if (definitionExists == 0)
+				{
+					throw new InvalidOperationException(
+						"The checklist definition for this demo policy is missing or inactive.");
+				}
+
 				var qids = (await connection.QueryAsync<int>(
 					"""
-            SELECT QID
-            FROM dbo.DemoPolicyRequirements
-            WHERE DemoPolicyID = @DemoPolicyID;
-            """,
-					new { DemoPolicyID = demoPolicyId },
+                    SELECT QID
+                    FROM dbo.ChecklistDefinitionRequirements
+                    WHERE DefinitionCode = @DefinitionCode
+                    ORDER BY QID;
+                    """,
+					new { DefinitionCode = definitionCode },
 					transaction)).ToList();
 
 				if (qids.Count == 0)
@@ -93,30 +122,38 @@ namespace ChecklistApp.Services
 
 				await connection.ExecuteAsync(
 					"""
-            INSERT INTO dbo.ChecklistTransactions
-                (TID, PNo, CID, Status, CreatedBy)
-            VALUES
-                (@TID, @PNo, @CID, 'InProgress', @CreatedBy);
-            """,
+                    INSERT INTO dbo.ChecklistTransactions
+                        (TID, ContextType, ContextID, ContextCode,
+                         DefinitionCode, Status, CreatedBy)
+                    VALUES
+                        (@TID, @ContextType, @ContextID, @ContextCode,
+                         @DefinitionCode, 'InProgress', @CreatedBy);
+                    """,
 					new
 					{
 						TID = tid,
-						policy.PNo,
-						policy.CID,
+						ContextType = "Policy",
+						ContextID = contextId,
+						ContextCode = "Demo",
+						DefinitionCode = definitionCode,
 						CreatedBy = "EMP001"
 					},
 					transaction);
 
-				foreach (int qid in qids)
-				{
-					await connection.ExecuteAsync(
-						"""
-                INSERT INTO dbo.ChecklistTransactionRequirements (TID, QID)
-                VALUES (@TID, @QID);
-                """,
-						new { TID = tid, QID = qid },
-						transaction);
-				}
+				await connection.ExecuteAsync(
+					"""
+                    INSERT INTO dbo.ChecklistTransactionRequirements (TID, QID)
+                    SELECT @TID, QID
+                    FROM dbo.ChecklistDefinitionRequirements
+                    WHERE DefinitionCode = @DefinitionCode;
+                    """,
+					new
+					{
+						TID = tid,
+						DefinitionCode = definitionCode
+					},
+					transaction);
+
 				await transaction.CommitAsync();
 
 				return tid;
@@ -127,6 +164,5 @@ namespace ChecklistApp.Services
 				throw;
 			}
 		}
-
 	}
 }

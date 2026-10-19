@@ -1,3 +1,4 @@
+
 using Dapper;
 using ChecklistApp.Data;
 using ChecklistApp.Models;
@@ -17,15 +18,17 @@ namespace ChecklistApp.Services
 		public async Task SaveChecklistAsync(ChecklistPageViewModel checklist)
 		{
 			if (checklist.TID <= 0 ||
-				string.IsNullOrWhiteSpace(checklist.PNo) ||
-				checklist.PNo.Length > 50 ||
-				string.IsNullOrWhiteSpace(checklist.CID) ||
-				checklist.CID.Length > 50 ||
+				string.IsNullOrWhiteSpace(checklist.ContextType) ||
+				checklist.ContextType.Length > 30 ||
+				string.IsNullOrWhiteSpace(checklist.ContextID) ||
+				checklist.ContextID.Length > 100 ||
+				string.IsNullOrWhiteSpace(checklist.ContextCode) ||
+				checklist.ContextCode.Length > 50 ||
 				string.IsNullOrWhiteSpace(checklist.EmployeeID) ||
 				checklist.EmployeeID.Length > 50)
 			{
 				throw new InvalidOperationException(
-					"Valid transaction and employee identifiers are required.");
+					"Valid transaction, context, and employee identifiers are required.");
 			}
 
 			if (checklist.Items == null || checklist.Items.Count == 0)
@@ -50,7 +53,7 @@ namespace ChecklistApp.Services
 
 			try
 			{
-				const string requirementsSql = @"
+				const string requirementsSql = """
                     SELECT r.QID
                     FROM dbo.ChecklistTransactions ct
                     INNER JOIN dbo.ChecklistTransactionRequirements ctr
@@ -58,9 +61,12 @@ namespace ChecklistApp.Services
                     INNER JOIN dbo.Requirements r
                         ON r.QID = ctr.QID
                     WHERE ct.TID = @TID
-                      AND ct.PNo = @PNo
-                      AND ct.CID = @CID
-                      AND r.IsActive = 1;";
+                      AND ct.ContextType = @ContextType
+                      AND ct.ContextID = @ContextID
+                      AND ct.ContextCode = @ContextCode
+                      AND ct.Status = 'InProgress'
+                      AND r.IsActive = 1;
+                    """;
 
 				var transactionQids = (
 					await connection.QueryAsync<int>(
@@ -68,8 +74,9 @@ namespace ChecklistApp.Services
 						new
 						{
 							checklist.TID,
-							checklist.PNo,
-							checklist.CID
+							checklist.ContextType,
+							checklist.ContextID,
+							checklist.ContextCode
 						},
 						transaction)
 				).ToHashSet();
@@ -77,7 +84,7 @@ namespace ChecklistApp.Services
 				if (transactionQids.Count == 0)
 				{
 					throw new InvalidOperationException(
-						"No active requirements were found for this transaction.");
+						"No active requirements were found for this checklist transaction, or the transaction is not editable.");
 				}
 
 				var submittedQids = checklist.Items
@@ -90,12 +97,13 @@ namespace ChecklistApp.Services
 						"The submitted questions do not match this transaction's checklist.");
 				}
 
-				const string rulesSql = @"
+				const string rulesSql = """
                     SELECT RuleID, TriggerQID, TriggerOptionID, DependentQID
                     FROM dbo.RequirementDisplayRules
                     WHERE IsActive = 1
                       AND TriggerQID IN @QIDs
-                      AND DependentQID IN @QIDs;";
+                      AND DependentQID IN @QIDs;
+                    """;
 
 				var rules = (
 					await connection.QueryAsync<RequirementDisplayRule>(
@@ -104,12 +112,13 @@ namespace ChecklistApp.Services
 						transaction)
 				).ToList();
 
-				const string optionSql = @"
+				const string optionSql = """
                     SELECT COUNT(1)
                     FROM dbo.RequirementResponseOptions
                     WHERE QID = @QID
                       AND OptionID = @OptionID
-                      AND IsActive = 1;";
+                      AND IsActive = 1;
+                    """;
 
 				foreach (var item in checklist.Items)
 				{
@@ -183,47 +192,45 @@ namespace ChecklistApp.Services
 					}
 				}
 
-				const string clearSql = @"
+				const string clearSql = """
                     UPDATE dbo.ChecklistResponses
                     SET OptionID = NULL,
                         UpdatedBy = @EmployeeID,
                         UpdatedAt = SYSUTCDATETIME()
                     WHERE TID = @TID
-                      AND QID = @QID;";
+                      AND QID = @QID;
+                    """;
 
-				const string currentSql = @"
+				const string currentSql = """
                     SELECT OptionID
                     FROM dbo.ChecklistResponses
                     WHERE TID = @TID
-                      AND QID = @QID;";
+                      AND QID = @QID;
+                    """;
 
-				const string saveResponseSql = @"
-                    IF EXISTS
-                    (
-                        SELECT 1
-                        FROM dbo.ChecklistResponses WITH (UPDLOCK, HOLDLOCK)
-                        WHERE TID = @TID AND QID = @QID
-                    )
-                    BEGIN
-                        UPDATE dbo.ChecklistResponses
-                        SET OptionID = @OptionID,
-                            UpdatedBy = @EmployeeID,
-                            UpdatedAt = SYSUTCDATETIME()
-                        WHERE TID = @TID AND QID = @QID;
-                    END
-                    ELSE
+				const string saveResponseSql = """
+                    UPDATE dbo.ChecklistResponses WITH (UPDLOCK, SERIALIZABLE)
+                    SET OptionID = @OptionID,
+                        UpdatedBy = @EmployeeID,
+                        UpdatedAt = SYSUTCDATETIME()
+                    WHERE TID = @TID
+                      AND QID = @QID;
+
+                    IF @@ROWCOUNT = 0
                     BEGIN
                         INSERT INTO dbo.ChecklistResponses
                             (TID, QID, OptionID, UpdatedBy)
                         VALUES
                             (@TID, @QID, @OptionID, @EmployeeID);
-                    END;";
+                    END;
+                    """;
 
-				const string historySql = @"
+				const string historySql = """
                     INSERT INTO dbo.ChecklistResponseHistory
                         (TID, QID, EmployeeID, OptionID, UserRemarks)
                     VALUES
-                        (@TID, @QID, @EmployeeID, @OptionID, @UserRemarks);";
+                        (@TID, @QID, @EmployeeID, @OptionID, @UserRemarks);
+                    """;
 
 				foreach (var item in checklist.Items)
 				{

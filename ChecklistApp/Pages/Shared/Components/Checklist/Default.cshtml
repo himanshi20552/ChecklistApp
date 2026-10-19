@@ -12,9 +12,12 @@
         <form method="post" asp-page="/Index" asp-page-handler="SaveChecklist">
             @Html.AntiForgeryToken()
             <input type="hidden" name="Checklist.TID" value="@Model.TID" />
+            <input type="hidden" name="Checklist.ContextType" value="@Model.ContextType" />
+            <input type="hidden" name="Checklist.ContextID" value="@Model.ContextID" />
+            <input type="hidden" name="Checklist.ContextCode" value="@Model.ContextCode" />
+            <input type="hidden" name="Checklist.EmployeeID" value="@Model.EmployeeID" />
             <input type="hidden" name="Checklist.PNo" value="@Model.PNo" />
             <input type="hidden" name="Checklist.CID" value="@Model.CID" />
-            <input type="hidden" name="Checklist.EmployeeID" value="@Model.EmployeeID" />
 
             <div class="table-responsive">
                 <table class="table table-bordered table-hover align-middle">

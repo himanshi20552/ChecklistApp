@@ -29,18 +29,24 @@ namespace ChecklistApp.Pages.Demo
 			try
 			{
 				var tid = await _demoPolicyService.StartTransactionAsync(demoPolicyId);
+
 				var policy = (await _demoPolicyService.GetPoliciesAsync())
 					.FirstOrDefault(p => p.DemoPolicyID == demoPolicyId);
 
 				if (policy is null)
+				{
 					return NotFound();
+				}
 
 				return RedirectToPage("/Index", new
 				{
 					tid,
+					contextType = "Policy",
+					contextId = $"{policy.PNo}|{policy.CID}",
+					contextCode = "Demo",
+					employeeId = "EMP001",
 					pno = policy.PNo,
-					cid = policy.CID,
-					employeeId = "EMP001"
+					cid = policy.CID
 				});
 			}
 			catch (InvalidOperationException ex)

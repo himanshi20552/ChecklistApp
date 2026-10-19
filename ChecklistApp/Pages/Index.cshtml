@@ -21,16 +21,30 @@
 {
     <p>
         <strong>Transaction:</strong> @Model.Checklist.TID
+
+        @if (!string.IsNullOrWhiteSpace(Model.Checklist.PNo))
+        {
+            <span>
+                &nbsp;
+                <strong>Policy:</strong> @Model.Checklist.PNo
+            </span>
+        }
+
+        <br />
+        <strong>Context:</strong> @Model.Checklist.ContextType
         &nbsp;
-        <strong>Policy:</strong> @Model.Checklist.PNo
+        <strong>Context ID:</strong> @Model.Checklist.ContextID
     </p>
 
     @await Component.InvokeAsync("Checklist", new
     {
         tid = Model.Checklist.TID,
+        contextType = Model.Checklist.ContextType,
+        contextId = Model.Checklist.ContextID,
+        contextCode = Model.Checklist.ContextCode,
+        employeeId = Model.Checklist.EmployeeID,
         pno = Model.Checklist.PNo,
-        cid = Model.Checklist.CID,
-        employeeId = Model.Checklist.EmployeeID
+        cid = Model.Checklist.CID
     })
 }
 else if (Model.ErrorMessage is null)

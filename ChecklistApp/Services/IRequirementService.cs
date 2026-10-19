@@ -1,10 +1,15 @@
-﻿using ChecklistApp.Models;
+﻿
+using ChecklistApp.Models;
 using ChecklistApp.ViewModels;
-namespace ChecklistApp.Services
 
+namespace ChecklistApp.Services
 {
-    public interface IRequirementService
-    {
-		Task<(List<ChecklistItemViewModel> Items, List<RequirementDisplayRule> DisplayRules)> GetChecklistItemsAsync(int tid, string pno, string cid);
+	public interface IRequirementService
+	{
+		Task<(List<ChecklistItemViewModel> Items,List<RequirementDisplayRule> DisplayRules)> GetChecklistItemsAsync(
+			int tid,
+			string contextType,
+			string contextId,
+			string contextCode);
 	}
 }

@@ -1,4 +1,5 @@
-﻿using Dapper;
+﻿
+using Dapper;
 using ChecklistApp.Data;
 using ChecklistApp.Models;
 using ChecklistApp.ViewModels;
@@ -17,7 +18,11 @@ namespace ChecklistApp.Services
 		public async Task<(
 			List<ChecklistItemViewModel> Items,
 			List<RequirementDisplayRule> DisplayRules
-		)> GetChecklistItemsAsync(int tid, string pno, string cid)
+		)> GetChecklistItemsAsync(
+			int tid,
+			string contextType,
+			string contextId,
+			string contextCode)
 		{
 			using var connection = _connectionFactory.CreateConnection();
 			await connection.OpenAsync();
@@ -34,17 +39,25 @@ namespace ChecklistApp.Services
                 INNER JOIN dbo.Requirements r
                     ON r.QID = ctr.QID
                 WHERE ct.TID = @TID
-                  AND ct.PNo = @PNo
-                  AND ct.CID = @CID
+                  AND ct.ContextType = @ContextType
+                  AND ct.ContextID = @ContextID
+                  AND ct.ContextCode = @ContextCode
                   AND r.IsActive = 1
                 ORDER BY r.QID;
                 """;
 
+			var parameters = new
+			{
+				TID = tid,
+				ContextType = contextType,
+				ContextID = contextId,
+				ContextCode = contextCode
+			};
+
 			var requirements = (
 				await connection.QueryAsync<Requirement>(
 					requirementsSql,
-					new { TID = tid, PNo = pno, CID = cid }
-				)
+					parameters)
 			).ToList();
 
 			if (requirements.Count == 0)
@@ -68,8 +81,7 @@ namespace ChecklistApp.Services
 			var options = (
 				await connection.QueryAsync<RequirementResponseOption>(
 					optionsSql,
-					new { QIDs = qids }
-				)
+					new { QIDs = qids })
 			).ToList();
 
 			const string responsesSql = """
@@ -82,8 +94,7 @@ namespace ChecklistApp.Services
 			var responses = (
 				await connection.QueryAsync<ChecklistResponse>(
 					responsesSql,
-					new { TID = tid, QIDs = qids }
-				)
+					new { TID = tid, QIDs = qids })
 			).ToList();
 
 			const string historySql = """
@@ -108,8 +119,7 @@ namespace ChecklistApp.Services
 			var history = (
 				await connection.QueryAsync<ChecklistResponseHistory>(
 					historySql,
-					new { TID = tid, QIDs = qids }
-				)
+					new { TID = tid, QIDs = qids })
 			).ToList();
 
 			const string rulesSql = """
@@ -127,8 +137,7 @@ namespace ChecklistApp.Services
 			var rules = (
 				await connection.QueryAsync<RequirementDisplayRule>(
 					rulesSql,
-					new { QIDs = qids }
-				)
+					new { QIDs = qids })
 			).ToList();
 
 			var optionsByQid = options

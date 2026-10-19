@@ -1,4 +1,3 @@
-
 using ChecklistApp.Services;
 using ChecklistApp.ViewModels;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +8,7 @@ namespace ChecklistApp.Pages
 	public class IndexModel : PageModel
 	{
 		private readonly IChecklistService _checklistService;
+
 		[BindProperty]
 		public ChecklistPageViewModel Checklist { get; set; } = new();
 
@@ -23,25 +23,30 @@ namespace ChecklistApp.Pages
 
 		public IActionResult OnGet(
 			int? tid,
-			string? pno,
-			string? cid,
+			string? contextType,
+			string? contextId,
+			string? contextCode,
 			string? employeeId,
+			string? pno = null,
+			string? cid = null,
 			bool saved = false)
 		{
 			if (tid is null || tid <= 0 ||
-				string.IsNullOrWhiteSpace(pno) ||
-				string.IsNullOrWhiteSpace(cid) ||
+				string.IsNullOrWhiteSpace(contextType) ||
+				string.IsNullOrWhiteSpace(contextId) ||
+				string.IsNullOrWhiteSpace(contextCode) ||
 				string.IsNullOrWhiteSpace(employeeId))
 			{
-				ErrorMessage =
-					"Required transaction information is missing.";
-
+				ErrorMessage = "Required transaction information is missing.";
 				return Page();
 			}
 
-			if (pno.Length > 50 ||
-				cid.Length > 50 ||
-				employeeId.Length > 50)
+			if (contextType.Length > 30 ||
+				contextId.Length > 100 ||
+				contextCode.Length > 50 ||
+				employeeId.Length > 50 ||
+				(pno?.Length > 50) ||
+				(cid?.Length > 50))
 			{
 				ErrorMessage = "One or more identifiers are too long.";
 				return Page();
@@ -50,9 +55,12 @@ namespace ChecklistApp.Pages
 			Checklist = new ChecklistPageViewModel
 			{
 				TID = tid.Value,
+				ContextType = contextType,
+				ContextID = contextId,
+				ContextCode = contextCode,
+				EmployeeID = employeeId,
 				PNo = pno,
-				CID = cid,
-				EmployeeID = employeeId
+				CID = cid
 			};
 
 			if (saved)
@@ -66,19 +74,21 @@ namespace ChecklistApp.Pages
 		public async Task<IActionResult> OnPostSaveChecklistAsync()
 		{
 			if (Checklist.TID <= 0 ||
-				string.IsNullOrWhiteSpace(Checklist.PNo) ||
-				string.IsNullOrWhiteSpace(Checklist.CID) ||
+				string.IsNullOrWhiteSpace(Checklist.ContextType) ||
+				string.IsNullOrWhiteSpace(Checklist.ContextID) ||
+				string.IsNullOrWhiteSpace(Checklist.ContextCode) ||
 				string.IsNullOrWhiteSpace(Checklist.EmployeeID))
 			{
-				ErrorMessage =
-					"Required transaction information is missing.";
-
+				ErrorMessage = "Required transaction information is missing.";
 				return Page();
 			}
 
-			if (Checklist.PNo.Length > 50 ||
-				Checklist.CID.Length > 50 ||
-				Checklist.EmployeeID.Length > 50)
+			if (Checklist.ContextType.Length > 30 ||
+				Checklist.ContextID.Length > 100 ||
+				Checklist.ContextCode.Length > 50 ||
+				Checklist.EmployeeID.Length > 50 ||
+				(Checklist.PNo?.Length > 50) ||
+				(Checklist.CID?.Length > 50))
 			{
 				ErrorMessage = "One or more identifiers are too long.";
 				return Page();
@@ -103,9 +113,12 @@ namespace ChecklistApp.Pages
 				return RedirectToPage("/Index", new
 				{
 					tid = Checklist.TID,
+					contextType = Checklist.ContextType,
+					contextId = Checklist.ContextID,
+					contextCode = Checklist.ContextCode,
+					employeeId = Checklist.EmployeeID,
 					pno = Checklist.PNo,
 					cid = Checklist.CID,
-					employeeId = Checklist.EmployeeID,
 					saved = true
 				});
 			}
