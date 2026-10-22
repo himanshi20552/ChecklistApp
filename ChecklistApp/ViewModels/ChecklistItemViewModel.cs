@@ -20,5 +20,10 @@ namespace ChecklistApp.ViewModels
 
 		public List<ChecklistResponseHistory> History { get; set; }
 			= new();
+		public IFormFile? File { get; set; }
+		public int? SavedDocumentOptionID { get; set; }
+
+		public bool HasSubmittedDocument { get; set; }
+		public List<SubmittedDocumentStatus> SubmittedDocuments { get; set; } = new();
 	}
 }

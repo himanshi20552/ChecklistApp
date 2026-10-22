@@ -14,6 +14,8 @@ namespace ChecklistApp
 			builder.Services.AddScoped<IChecklistService, ChecklistService>();
 			builder.Services.AddScoped<IRequirementService, RequirementService>();
 			builder.Services.AddScoped<IDemoPolicyService, DemoPolicyService>();
+			builder.Services.AddScoped<DocumentService>();
+			builder.Services.AddScoped<ChecklistWorkflowCoordinator>();
 			builder.Services.AddControllers();
 			builder.Services.AddOpenApi();
 

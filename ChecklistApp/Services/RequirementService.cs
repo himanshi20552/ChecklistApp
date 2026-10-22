@@ -122,6 +122,23 @@ namespace ChecklistApp.Services
 					new { TID = tid, QIDs = qids })
 			).ToList();
 
+			const string documentsSql = """
+                SELECT
+                    d.QID,
+                    d.OptionID,
+                    d.Status
+                FROM dbo.Documents d
+                WHERE d.TID = @TID
+                  AND d.QID IN @QIDs
+                  AND d.Status = 'Submitted';
+                """;
+
+			var submittedDocuments = (
+				await connection.QueryAsync<SubmittedDocumentStatus>(
+					documentsSql,
+					new { TID = tid, QIDs = qids })
+			).ToList();
+
 			const string rulesSql = """
                 SELECT
                     RuleID,
@@ -151,6 +168,10 @@ namespace ChecklistApp.Services
 				.GroupBy(h => h.QID)
 				.ToDictionary(g => g.Key, g => g.ToList());
 
+			var documentsByQid = submittedDocuments
+				.GroupBy(d => d.QID)
+				.ToDictionary(g => g.Key, g => g.ToList());
+
 			var items = requirements.Select(requirement =>
 			{
 				responsesByQid.TryGetValue(
@@ -162,6 +183,9 @@ namespace ChecklistApp.Services
 				historyByQid.TryGetValue(
 					requirement.QID, out var requirementHistory);
 
+				documentsByQid.TryGetValue(
+					requirement.QID, out var requirementDocuments);
+
 				return new ChecklistItemViewModel
 				{
 					QID = requirement.QID,
@@ -170,7 +194,8 @@ namespace ChecklistApp.Services
 					IsDoc = requirement.IsDoc,
 					Options = requirementOptions ?? new(),
 					SelectedOptionID = response?.OptionID,
-					History = requirementHistory ?? new()
+					History = requirementHistory ?? new(),
+					SubmittedDocuments = requirementDocuments ?? new()
 				};
 			}).ToList();
 

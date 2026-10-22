@@ -1,3 +1,4 @@
+
 using ChecklistApp.Services;
 using ChecklistApp.ViewModels;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +8,7 @@ namespace ChecklistApp.Pages
 {
 	public class IndexModel : PageModel
 	{
-		private readonly IChecklistService _checklistService;
+		private readonly ChecklistWorkflowCoordinator _workflowCoordinator;
 
 		[BindProperty]
 		public ChecklistPageViewModel Checklist { get; set; } = new();
@@ -16,9 +17,10 @@ namespace ChecklistApp.Pages
 
 		public string? SuccessMessage { get; private set; }
 
-		public IndexModel(IChecklistService checklistService)
+		public IndexModel(
+			ChecklistWorkflowCoordinator workflowCoordinator)
 		{
-			_checklistService = checklistService;
+			_workflowCoordinator = workflowCoordinator;
 		}
 
 		public IActionResult OnGet(
@@ -45,8 +47,8 @@ namespace ChecklistApp.Pages
 				contextId.Length > 100 ||
 				contextCode.Length > 50 ||
 				employeeId.Length > 50 ||
-				(pno?.Length > 50) ||
-				(cid?.Length > 50))
+				pno?.Length > 50 ||
+				cid?.Length > 50)
 			{
 				ErrorMessage = "One or more identifiers are too long.";
 				return Page();
@@ -87,14 +89,14 @@ namespace ChecklistApp.Pages
 				Checklist.ContextID.Length > 100 ||
 				Checklist.ContextCode.Length > 50 ||
 				Checklist.EmployeeID.Length > 50 ||
-				(Checklist.PNo?.Length > 50) ||
-				(Checklist.CID?.Length > 50))
+				Checklist.PNo?.Length > 50 ||
+				Checklist.CID?.Length > 50)
 			{
 				ErrorMessage = "One or more identifiers are too long.";
 				return Page();
 			}
 
-			if (Checklist.Items.Count == 0)
+			if (Checklist.Items == null || Checklist.Items.Count == 0)
 			{
 				ErrorMessage = "There are no checklist items to save.";
 				return Page();
@@ -108,7 +110,7 @@ namespace ChecklistApp.Pages
 
 			try
 			{
-				await _checklistService.SaveChecklistAsync(Checklist);
+				await _workflowCoordinator.ProcessAtomicSaveAsync(Checklist);
 
 				return RedirectToPage("/Index", new
 				{
